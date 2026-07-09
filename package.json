@@ -1,0 +1,13 @@
+{
+  "name": "cerotres-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen:types": "node scripts/generate-db-types.mjs",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5"
+  }
+}

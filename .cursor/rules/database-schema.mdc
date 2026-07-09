@@ -1,0 +1,28 @@
+---
+description: Supabase database schema and types for 03/cerotres
+alwaysApply: true
+---
+
+# Database schema
+
+Before writing queries or API routes that touch Postgres, read `types/database.types.ts` for the current schema (tables, columns, enums, relationships).
+
+Regenerate after migrations: `npm run gen:types` (requires `backend/.env` with Supabase credentials).
+
+## Conventions
+
+- UI copy in Spanish; code, tables, columns, and variables in English.
+- USD is the accounting base currency. `orders.total`, `payments.amount`, and reports use USD. `currency`, `exchange_rate`, and `*_currency` columns snapshot what the customer saw/paid.
+- All data access goes through the backend (`supabaseAdmin` service role). RLS is on with no anon policies.
+- Product modifiers use option groups (`option_groups` → `option_items` → `product_option_groups`), not flat variants.
+
+## Core domains
+
+- **Identity**: `profiles` (staff roles: admin, manager, kitchen, delivery, customer)
+- **Customers**: `customers`, `customer_addresses` (cedula, phone required)
+- **Catalog**: `categories`, `products`, `option_groups`, `option_items`, `product_option_groups`
+- **Inventory**: `ingredients`, `units`, `inventory_movements`, `recipes`, `recipe_ingredients`
+- **Sales**: `orders`, `order_items`, `order_item_options`, `order_status_history`, `payments`
+- **Purchases**: `purchases`, `purchase_items`, `purchase_payments`, `suppliers`
+- **Finance**: `financial_accounts`, `expenses`, `cash_flow_entries`, `exchange_rates`
+- **Settings**: `business_settings` (single row, `id = true`)

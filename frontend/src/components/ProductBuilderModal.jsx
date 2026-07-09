@@ -63,43 +63,30 @@ export default function ProductBuilderModal({ product, onClose, onAdd, submitLab
 
   return (
     <Modal title={product.name} onClose={onClose} width={480}>
-      {product.description && <p style={{ color: "var(--gray)", marginTop: -6 }}>{product.description}</p>}
+      {product.description ? <p style={{ color: "var(--muted)", marginTop: -6, marginBottom: 14 }}>{product.description}</p> : null}
 
       {groups.map((group) => (
         <div key={group.id} className="field">
           <label className="label">
             {group.name} {group.is_required && "*"}
-            {group.selection_type === "multiple" && group.max_select ? ` (max ${group.max_select})` : ""}
+            {group.selection_type === "multiple" && group.max_select ? ` (máx. ${group.max_select})` : ""}
           </label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="builder-options">
             {group.items.map((item) => {
               const checked = (selections[group.id] || new Set()).has(item.id);
               return (
-                <label
-                  key={item.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                    padding: "8px 10px",
-                    background: checked ? "#fbe9df" : "var(--white)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <span>
+                <label key={item.id} className={`builder-option ${checked ? "is-selected" : ""}`}>
+                  <span className="builder-option__main">
                     <input
                       type={group.selection_type === "single" ? "radio" : "checkbox"}
                       name={group.id}
                       checked={checked}
                       onChange={() => toggle(group, item)}
-                      style={{ marginRight: 8 }}
                     />
                     {item.name}
                   </span>
                   {Number(item.price_modifier) !== 0 && (
-                    <span style={{ fontSize: 12, color: "var(--gray)" }}>
+                    <span className="builder-option__price">
                       {Number(item.price_modifier) > 0 ? "+" : ""}
                       {format(item.price_modifier)}
                     </span>

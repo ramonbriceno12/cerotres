@@ -8,7 +8,7 @@ const PAYMENT_METHODS = [
   { value: "cash", label: "Efectivo" },
   { value: "card", label: "Tarjeta" },
   { value: "transfer", label: "Transferencia" },
-  { value: "pago_movil", label: "Pago movil" },
+  { value: "pago_movil", label: "Pago móvil" },
   { value: "zelle", label: "Zelle" },
   { value: "other", label: "Otro" },
 ];
@@ -65,24 +65,35 @@ export default function Checkout() {
   };
 
   if (lines.length === 0) {
-    return <p className="empty-state">Tu carrito esta vacio.</p>;
+    return (
+      <div className="store-page">
+        <div className="store-page__banner">
+          <h1>Finalizar pedido</h1>
+        </div>
+        <p className="empty-state">Tu carrito está vacío.</p>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <h1 className="page-title">Finalizar pedido</h1>
+    <div className="store-page" style={{ maxWidth: 1000 }}>
+      <div className="store-page__banner">
+        <h1>Finalizar pedido</h1>
+        <p>Completa tus datos y confirma. Te llevamos el pedido o lo recoges en tienda.</p>
+      </div>
+
       <div className="grid grid-2">
-        <form className="card" onSubmit={handleSubmit}>
+        <form className="store-card" onSubmit={handleSubmit}>
           <div className="field">
             <label className="label">Nombre completo *</label>
             <input className="input" required value={form.full_name} onChange={(e) => set("full_name", e.target.value)} />
           </div>
           <div className="field">
-            <label className="label">Cedula *</label>
+            <label className="label">Cédula *</label>
             <input className="input" required value={form.cedula} onChange={(e) => set("cedula", e.target.value)} />
           </div>
           <div className="field">
-            <label className="label">Telefono *</label>
+            <label className="label">Teléfono *</label>
             <input className="input" required value={form.phone} onChange={(e) => set("phone", e.target.value)} />
           </div>
           <div className="field">
@@ -92,31 +103,41 @@ export default function Checkout() {
 
           <div className="field">
             <label className="label">Tipo de pedido</label>
-            <div className="toolbar" style={{ marginBottom: 0 }}>
-              <button type="button" className={`btn ${orderType === "delivery" ? "btn-primary" : "btn-outline"} btn-sm`} onClick={() => setOrderType("delivery")}>
+            <div className="pill-row">
+              <button type="button" className={`pill ${orderType === "delivery" ? "pill-active" : ""}`} onClick={() => setOrderType("delivery")}>
                 Delivery
               </button>
-              <button type="button" className={`btn ${orderType === "pickup" ? "btn-primary" : "btn-outline"} btn-sm`} onClick={() => setOrderType("pickup")}>
+              <button type="button" className={`pill ${orderType === "pickup" ? "pill-active" : ""}`} onClick={() => setOrderType("pickup")}>
                 Retiro en tienda
               </button>
             </div>
           </div>
 
           <div className="field">
-            <label className="label">Direccion *</label>
-            <input className="input" required value={form.address_line} onChange={(e) => set("address_line", e.target.value)} />
+            <label className="label">Dirección *</label>
+            <input
+              className="input"
+              required
+              value={form.address_line}
+              onChange={(e) => set("address_line", e.target.value)}
+              placeholder={orderType === "pickup" ? "Retiro en tienda" : ""}
+            />
           </div>
-          <div className="field">
-            <label className="label">Punto de referencia</label>
-            <input className="input" value={form.reference} onChange={(e) => set("reference", e.target.value)} />
-          </div>
-          <div className="field">
-            <label className="label">Ciudad</label>
-            <input className="input" value={form.city} onChange={(e) => set("city", e.target.value)} />
-          </div>
+          {orderType === "delivery" && (
+            <>
+              <div className="field">
+                <label className="label">Punto de referencia</label>
+                <input className="input" value={form.reference} onChange={(e) => set("reference", e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="label">Ciudad</label>
+                <input className="input" value={form.city} onChange={(e) => set("city", e.target.value)} />
+              </div>
+            </>
+          )}
 
           <div className="field">
-            <label className="label">Metodo de pago</label>
+            <label className="label">Método de pago</label>
             <select className="input" value={form.payment_method} onChange={(e) => set("payment_method", e.target.value)}>
               {PAYMENT_METHODS.map((m) => (
                 <option key={m.value} value={m.value}>
@@ -124,7 +145,9 @@ export default function Checkout() {
                 </option>
               ))}
             </select>
-            <p style={{ fontSize: 12, color: "var(--gray)", marginTop: 4 }}>Pagando en {currency}. El pago se confirma al recibir el pedido.</p>
+            <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 6, marginBottom: 0 }}>
+              Pagando en <strong>{currency}</strong>. El pago se confirma al recibir el pedido.
+            </p>
           </div>
 
           <div className="field">
@@ -132,28 +155,29 @@ export default function Checkout() {
             <textarea className="input" rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Instrucciones especiales para tu pedido" />
           </div>
 
-          {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
-          <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: "100%" }}>
-            {submitting ? "Enviando..." : `Confirmar pedido - ${format(subtotal)}`}
+          {error && <p style={{ color: "var(--danger)", marginTop: 0 }}>{error}</p>}
+          <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: "100%", padding: "14px 20px", fontSize: 15 }}>
+            {submitting ? "Enviando..." : `Confirmar pedido — ${format(subtotal)}`}
           </button>
         </form>
 
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Resumen</h3>
+        <div className="store-card" style={{ alignSelf: "start", position: "sticky", top: 100 }}>
+          <h3 style={{ margin: "0 0 6px", fontFamily: "var(--store-display)", fontWeight: 800 }}>Resumen</h3>
+          <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 13 }}>
+            {lines.reduce((s, l) => s + l.quantity, 0)} artículos en tu pedido
+          </p>
           {lines.map((l) => (
-            <div key={l.key} style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div key={l.key} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span>
-                  {l.quantity}x {l.name}
+                  {l.quantity}× {l.name}
                 </span>
-                <span>{format(l.unit_price * l.quantity)}</span>
+                <strong>{format(l.unit_price * l.quantity)}</strong>
               </div>
-              {l.selected_options?.length > 0 && (
-                <div style={{ fontSize: 12, color: "var(--gray)" }}>{l.selected_options.map((o) => o.name).join(", ")}</div>
-              )}
+              {l.selected_options?.length > 0 && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>{l.selected_options.map((o) => o.name).join(", ")}</div>}
             </div>
           ))}
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, fontWeight: 700 }}>
+          <div className="cart-total" style={{ marginTop: 8 }}>
             <span>Subtotal</span>
             <span>{format(subtotal)}</span>
           </div>
