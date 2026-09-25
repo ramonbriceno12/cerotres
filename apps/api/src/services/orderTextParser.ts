@@ -6,35 +6,50 @@ import { AppError } from '../lib/errors.js';
 import { prisma } from '../lib/prisma.js';
 import { previewAdminOrderPricing } from './ordersAdmin.js';
 
+function emptyToUndefined(value: unknown): unknown {
+  if (value === null) return undefined;
+  if (typeof value === 'string' && value.trim() === '') return undefined;
+  return value;
+}
+
+const optionalText = z.preprocess(emptyToUndefined, z.string().optional());
+const optionalEmail = z.preprocess(emptyToUndefined, z.string().email().optional());
+
 const claudeResponseSchema = z.object({
   customerName: z.string().min(1),
-  customerPhone: z.string().optional(),
-  customerEmail: z.string().email().optional(),
+  customerPhone: optionalText,
+  customerEmail: optionalEmail,
   fulfillmentType: z.enum(['PICKUP', 'DELIVERY']),
-  deliveryZoneName: z.string().optional(),
-  addressLine1: z.string().optional(),
-  externalOrderRef: z.string().optional(),
-  notes: z.string().optional(),
-  payments: z
-    .array(
-      z.object({
-        method: z.string(),
-        sharePercent: z.number().min(0).max(100).optional(),
-        reference: z.string().optional(),
-      }),
-    )
-    .optional(),
+  deliveryZoneName: optionalText,
+  addressLine1: optionalText,
+  externalOrderRef: optionalText,
+  notes: optionalText,
+  payments: z.preprocess(
+    (value) => (value == null ? undefined : value),
+    z
+      .array(
+        z.object({
+          method: z.string(),
+          sharePercent: z.preprocess(emptyToUndefined, z.number().min(0).max(100).optional()),
+          reference: optionalText,
+        }),
+      )
+      .optional(),
+  ),
   items: z
     .array(
       z.object({
         productName: z.string().min(1),
         quantity: z.number().int().positive(),
-        optionNames: z.array(z.string()).default([]),
-        notes: z.string().optional(),
+        optionNames: z.preprocess((value) => (value == null ? [] : value), z.array(z.string())),
+        notes: optionalText,
       }),
     )
     .min(1),
-  parseNotes: z.array(z.string()).optional(),
+  parseNotes: z.preprocess(
+    (value) => (value == null ? undefined : value),
+    z.array(z.string()).optional(),
+  ),
 });
 
 export type TextOrderPreviewItem = {
@@ -214,6 +229,7 @@ async function callClaude(input: {
   const system = `You parse Spanish restaurant orders into JSON for a dark kitchen admin system.
 Rules:
 - Output ONLY valid JSON matching the schema described. No markdown outside JSON.
+- For unknown optional fields, use null.
 - Use exact product and option names from the catalog when possible.
 - Do NOT invent products or options not in the catalog.
 - Do NOT compute prices or totals — only quantities and names.
