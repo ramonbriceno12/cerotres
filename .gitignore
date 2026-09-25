@@ -1,7 +1,36 @@
-node_modules/
-dist/
+# Dependencies
+node_modules
+.pnpm-store
+
+# Builds
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Env
 .env
 .env.local
+.env.*.local
+!.env.example
+
+# Logs
+logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / IDE
 .DS_Store
-.tmp-openapi.json
+Thumbs.db
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Misc
+.turbo
+*.local
+.cache
+apps/web/dev-dist
+apps/admin/dev-dist
+apps/api/uploads

@@ -1,13 +1,32 @@
 {
-  "name": "cerotres-web",
+  "name": "cerotres",
   "private": true,
-  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
-    "gen:types": "node scripts/generate-db-types.mjs",
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend"
+    "dev": "pnpm -r --parallel --filter @cerotres/api --filter @cerotres/web --filter @cerotres/admin run dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r run typecheck",
+    "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "check:web-bundle": "node scripts/check-web-bundle-leak.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5"
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,md,css,yml,yaml}": "prettier --write"
+  },
+  "dependencies": {
+    "tslib": "^2.8.1"
   }
 }

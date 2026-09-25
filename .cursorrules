@@ -1,0 +1,67 @@
+# === GUARDA ESTE ARCHIVO EN LA RAÍZ DEL PROYECTO CON EL NOMBRE  .cursorrules  ===
+# (con el punto delante y sin extensión .txt)
+
+# Proyecto: Cero Tres — plataforma de pedidos y administración para dark kitchen
+
+## Sobre la persona con la que hablas
+- No es desarrollador de este stack y parte de CERO: no tiene Node, Docker, AWS, dominio ni nada.
+- Nunca asumas que una herramienta está instalada o que una cuenta existe: verifica primero.
+- Cuando necesites que haga algo fuera del editor, DETENTE y entrega un bloque
+  "🙋 ACCIÓN REQUERIDA" con: objetivo en una frase sin jerga, pasos numerados, cómo verificar
+  que salió bien, y qué te tiene que devolver.
+- Comandos exactos, uno por bloque, indicando siempre la carpeta.
+- Responde en español. Código, identificadores y comentarios en inglés.
+- Explica el "por qué" en una línea antes de cada decisión técnica relevante.
+
+## Reglas de dinero
+- Todo importe se guarda y se opera como entero de CENTAVOS. Prohibido `Float` para dinero.
+- Los porcentajes se guardan como `Decimal(7,4)` (0.2500 = 25%).
+- El redondeo ocurre una sola vez, al final del cálculo.
+- El backend recalcula SIEMPRE los totales. El total que envía el cliente es solo informativo;
+  si no coincide, responde 409 PRICE_MISMATCH.
+
+## Reglas de inmutabilidad histórica (críticas)
+- La comisión del canal se resuelve UNA vez, al crear el pedido, según la tarifa vigente en la
+  FECHA DEL PEDIDO, y se COPIA a las columnas snapshot de `Order`.
+- Cambiar una tarifa jamás modifica pedidos existentes. Hay un trigger en Postgres que lo impide.
+- Las correcciones se hacen con `CommissionAdjustment`, nunca editando el snapshot.
+- Igual criterio para el costo de ventas: se congela al momento del pedido.
+- `OrderItem` guarda snapshot del nombre, descripción y precio del producto y de cada opción.
+
+## Aislamiento del canal frente al cliente
+- La app de clientes (`apps/web`) NO puede contener la palabra "PedidosYa", ni el canal de venta,
+  ni comisiones, ni referencias externas. Ni en el código, ni en los tipos, ni en el bundle.
+- Los DTO públicos son tipos SEPARADOS de los internos, no el mismo tipo filtrado.
+- Existe un chequeo en CI que hace grep del bundle de `apps/web` y falla si aparece "pedidosya".
+
+## Motor de modificadores
+- El producto principal tiene precio base; todo lo demás es opcional.
+- Cada grupo tiene `free_quantity` (cuántas selecciones van incluidas), con override por producto.
+- El cupo gratuito se aplica a las opciones MÁS CARAS primero (HIGHEST_PRICE_FIRST).
+- Una opción con recargo 0 no consume cupo gratuito.
+- La lógica vive en `packages/shared/pricing.ts` y está cubierta por tests. Se escriben los tests
+  ANTES de la implementación.
+
+## Calidad
+- TypeScript estricto. Nada de `any` sin justificación escrita.
+- Zod valida toda entrada. Nunca confíes en el cliente para precios, totales ni estados.
+- Nada de secretos en el código ni en el chat: siempre `.env`, con `.env.example` versionado vacío.
+- Migraciones versionadas. Nunca `prisma db push` contra producción.
+- Antes de cualquier operación destructiva (borrar datos, resetear migraciones), pide confirmación.
+- Toda acción sensible del admin se registra en `AuditLog`.
+- Cada fase termina funcionando, con tests en verde y un commit limpio.
+
+## Cómo entregar el trabajo
+1. Antes de codificar, resume en 5 líneas qué vas a hacer y espera el visto bueno.
+2. Si algo es ambiguo, pregunta antes, con opciones concretas y tu recomendación.
+3. Nada de código que no corra. Nada de TODO en el camino feliz.
+4. Al terminar: qué se creó, cómo probarlo a mano paso a paso, qué quedó pendiente,
+   y el mensaje de commit sugerido.
+5. No adelantes fases del plan.
+
+## Diseño
+- App de clientes: fondo granate #3E1F1C, texto crema #F2E9DA, rojo de marca #E0241B,
+  acento dorado #E8B23A. Display: Fraunces (SOFT/WONK). Interfaz: Plus Jakarta Sans.
+  Sensación de app nativa: nav inferior, bottom sheets, esqueletos de carga, safe areas,
+  transiciones de 180–240 ms, `prefers-reduced-motion` respetado, contraste AA como piso.
+- Admin: neutro, claro, denso, legible. No usa la paleta de marca salvo para acciones destructivas.

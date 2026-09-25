@@ -1,0 +1,956 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum AdminRole {
+  OWNER
+  MANAGER
+  KITCHEN
+  CASHIER
+}
+
+enum SelectionType {
+  SINGLE
+  MULTI
+}
+
+enum FreeStrategy {
+  HIGHEST_PRICE_FIRST
+  SELECTION_ORDER
+}
+
+enum FeeBase {
+  SUBTOTAL
+  SUBTOTAL_PLUS_DELIVERY
+  ORDER_TOTAL
+}
+
+enum OrderStatus {
+  DRAFT
+  RECEIVED
+  CONFIRMED
+  IN_PREPARATION
+  READY
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+enum PaymentMethod {
+  PAGO_MOVIL
+  ZELLE
+  CASH
+  TRANSFER
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REFUNDED
+}
+
+enum SettlementStatus {
+  PENDING
+  RECONCILED
+  WITH_DIFFERENCES
+  COLLECTED
+}
+
+enum PurchasePaymentTerms {
+  CASH
+  CREDIT
+}
+
+enum PayableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum ReceivableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum UnitDimension {
+  MASS
+  VOLUME
+  COUNT
+  OTHER
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+// ─── Admin / auth ─────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  passwordHash         String
+  name                 String
+  role                 AdminRole @default(CASHIER)
+  isActive             Boolean   @default(true)
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  totpSecret           String?
+  totpEnabled          Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  channelFeeRates      ChannelFeeRate[]      @relation("FeeRateCreatedBy")
+  commissionAdjustments CommissionAdjustment[] @relation("AdjustmentCreatedBy")
+  orderStatusEvents    OrderStatusEvent[]
+  auditLogs            AuditLog[]
+  settlements          Settlement[]          @relation("SettlementCreatedBy")
+  purchases            Purchase[]            @relation("PurchaseCreatedBy")
+  expenses             Expense[]             @relation("ExpenseCreatedBy")
+  wastes               Waste[]               @relation("WasteCreatedBy")
+  refreshTokens        AdminRefreshToken[]
+  exchangeRates        ExchangeRate[]        @relation("ExchangeRateCreatedBy")
+  cashSessionsOpened   CashSession[]         @relation("CashSessionOpenedBy")
+  cashSessionsClosed   CashSession[]         @relation("CashSessionClosedBy")
+}
+
+model AdminRefreshToken {
+  id                String    @id @default(cuid())
+  adminUserId       String
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
+model Customer {
+  id                    String    @id @default(cuid())
+  email                 String?   @unique
+  phone                 String?
+  name                  String
+  marketingConsent      Boolean   @default(false)
+  marketingUnsubscribed Boolean   @default(false)
+  notes                 String?
+  tags                  String[]  @default([])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  addresses      CustomerAddress[]
+  guestSessions  GuestSession[]
+  orders         Order[]
+  emailRecipients EmailRecipient[]
+}
+
+model CustomerAddress {
+  id         String    @id @default(cuid())
+  customerId String
+  label      String?
+  line1      String
+  line2      String?
+  reference  String?
+  zoneId     String?
+  isDefault  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  customer Customer      @relation(fields: [customerId], references: [id])
+  zone     DeliveryZone? @relation(fields: [zoneId], references: [id])
+  orders   Order[]
+}
+
+model GuestSession {
+  id               String    @id @default(cuid())
+  customerId       String?
+  orderId          String?   @unique
+  tokenHash        String
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+  order    Order?    @relation(fields: [orderId], references: [id])
+
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+// ─── Catalog ──────────────────────────────────────────────────────────────────
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  products Product[]
+}
+
+model Product {
+  id              String    @id @default(cuid())
+  categoryId      String
+  name            String
+  slug            String    @unique
+  description     String?
+  priceCents      Int
+  imageKey        String?
+  isAvailable     Boolean   @default(true)
+  isActive        Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  category            Category               @relation(fields: [categoryId], references: [id])
+  modifierGroups      ProductModifierGroup[]
+  recipeItems         RecipeItem[]
+  orderItems          OrderItem[]
+  channelPrices       ProductChannelPrice[]
+
+  @@index([categoryId])
+  @@index([isAvailable, isActive])
+}
+
+model ModifierGroup {
+  id              String        @id @default(cuid())
+  name            String
+  description     String?
+  selectionType   SelectionType @default(MULTI)
+  minSelect       Int           @default(0)
+  maxSelect       Int?
+  freeQuantity    Int           @default(0)
+  freeStrategy    FreeStrategy  @default(HIGHEST_PRICE_FIRST)
+  maxQtyPerOption Int           @default(1)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  options  ModifierOption[]
+  products ProductModifierGroup[]
+}
+
+model ModifierOption {
+  id          String    @id @default(cuid())
+  groupId     String
+  name        String
+  description String?
+  priceDelta  Int       @default(0)
+  isAvailable Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  group            ModifierGroup              @relation(fields: [groupId], references: [id])
+  orderItemOptions OrderItemOption[]
+  recipeItems      ModifierOptionRecipeItem[]
+
+  @@index([groupId])
+}
+
+model ProductModifierGroup {
+  id                   String   @id @default(cuid())
+  productId            String
+  groupId              String
+  sortOrder            Int      @default(0)
+  minSelectOverride    Int?
+  maxSelectOverride    Int?
+  freeQuantityOverride Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  product Product       @relation(fields: [productId], references: [id])
+  group   ModifierGroup @relation(fields: [groupId], references: [id])
+
+  @@unique([productId, groupId])
+}
+
+// ─── Sales channels & commissions ─────────────────────────────────────────────
+
+model SalesChannel {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  name                String
+  isActive            Boolean  @default(true)
+  requiresExternalRef Boolean  @default(false)
+  colorHex            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  feeRates      ChannelFeeRate[]
+  orders        Order[]
+  settlements   Settlement[]
+  productPrices ProductChannelPrice[]
+}
+
+model ChannelFeeRate {
+  id            String    @id @default(cuid())
+  channelId     String
+  percent       Decimal   @db.Decimal(7, 4)
+  fixedFeeCents Int       @default(0)
+  appliesTo     FeeBase
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  note          String?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  channel   SalesChannel @relation(fields: [channelId], references: [id])
+  createdBy AdminUser    @relation("FeeRateCreatedBy", fields: [createdById], references: [id])
+  orders    Order[]
+
+  @@index([channelId, effectiveFrom])
+}
+
+/// Optional menu price for a product on a sales channel (PedidosYa, future apps).
+/// Missing row = use Product.priceCents. Historical orders keep OrderItem snapshots.
+model ProductChannelPrice {
+  id         String   @id @default(cuid())
+  productId  String
+  channelId  String
+  priceCents Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product Product      @relation(fields: [productId], references: [id])
+  channel SalesChannel @relation(fields: [channelId], references: [id])
+
+  @@unique([productId, channelId])
+  @@index([channelId])
+}
+
+model CommissionAdjustment {
+  id          String   @id @default(cuid())
+  orderId     String
+  amountCents Int
+  reason      String
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order     Order     @relation(fields: [orderId], references: [id])
+  createdBy AdminUser @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([orderId])
+}
+
+model Settlement {
+  id              String           @id @default(cuid())
+  channelId       String
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          SettlementStatus @default(PENDING)
+  expectedNetCents Int             @default(0)
+  reportedNetCents Int?
+  csvObjectKey    String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  channel   SalesChannel     @relation(fields: [channelId], references: [id])
+  createdBy AdminUser        @relation("SettlementCreatedBy", fields: [createdById], references: [id])
+  lines     SettlementLine[]
+
+  @@index([channelId, periodStart])
+}
+
+model SettlementLine {
+  id                    String   @id @default(cuid())
+  settlementId          String
+  orderId               String?
+  externalOrderRef      String?
+  expectedCommissionCents Int
+  reportedCommissionCents Int?
+  differenceCents       Int      @default(0)
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  settlement Settlement @relation(fields: [settlementId], references: [id])
+  order      Order?     @relation(fields: [orderId], references: [id])
+
+  @@index([settlementId])
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id        String      @id @default(cuid())
+  publicCode String     @unique
+  status    OrderStatus @default(DRAFT)
+  channelId String
+  customerId String?
+  addressId String?
+
+  fulfillmentType FulfillmentType
+  deliveryZoneId  String?
+  deliveryFeeCents Int            @default(0)
+
+  scheduledFor DateTime?
+  customerName String
+  customerEmail String?
+  customerPhone String?
+  notes         String?
+  cancelReason  String?
+
+  externalOrderRef String?
+
+  // Commission snapshot (immutable after DRAFT)
+  channelFeeRateId           String?
+  commissionPercentSnapshot  Decimal? @db.Decimal(7, 4)
+  commissionFixedSnapshot    Int?
+  commissionBaseSnapshot     FeeBase?
+  commissionBaseAmountCents  Int?
+  commissionAmountCents      Int?
+  netPayoutExpectedCents     Int?
+
+  // COGS snapshot (immutable after DRAFT) — cents, frozen at order time
+  cogsCents Int @default(0)
+
+  /// Bs per 1 USD at order time (internal dual-currency display)
+  exchangeRateBolivarsPerUsd Decimal? @db.Decimal(18, 4)
+
+  subtotalCents Int @default(0)
+  discountCents Int @default(0)
+  taxCents      Int @default(0)
+  totalCents    Int @default(0)
+
+  couponId String?
+  placedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  channel            SalesChannel           @relation(fields: [channelId], references: [id])
+  channelFeeRate     ChannelFeeRate?        @relation(fields: [channelFeeRateId], references: [id])
+  customer           Customer?              @relation(fields: [customerId], references: [id])
+  address            CustomerAddress?       @relation(fields: [addressId], references: [id])
+  deliveryZone       DeliveryZone?          @relation(fields: [deliveryZoneId], references: [id])
+  coupon             Coupon?                @relation(fields: [couponId], references: [id])
+  items              OrderItem[]
+  statusEvents       OrderStatusEvent[]
+  payments           Payment[]
+  commissionAdjustments CommissionAdjustment[]
+  settlementLines    SettlementLine[]
+  guestSession       GuestSession?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([channelId])
+  @@index([customerId])
+  @@index([placedAt])
+}
+
+model OrderItem {
+  id                   String   @id @default(cuid())
+  orderId              String
+  productId            String?
+  quantity             Int
+  // Snapshots
+  productName          String
+  productDescription   String?
+  unitPriceCents       Int
+  lineTotalCents       Int
+  unitCogsCents        Int      @default(0)
+  lineCogsCents        Int      @default(0)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  order   Order             @relation(fields: [orderId], references: [id])
+  product Product?          @relation(fields: [productId], references: [id])
+  options OrderItemOption[]
+
+  @@index([orderId])
+}
+
+model OrderItemOption {
+  id                  String   @id @default(cuid())
+  orderItemId         String
+  modifierOptionId    String?
+  groupName           String
+  optionName          String
+  optionDescription   String?
+  quantity            Int      @default(1)
+  unitPriceDeltaCents Int
+  linePriceDeltaCents Int
+  wasFree             Boolean  @default(false)
+  /// Frozen option recipe cost for one unit of the parent order item
+  unitCogsCents       Int      @default(0)
+  lineCogsCents       Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  orderItem      OrderItem       @relation(fields: [orderItemId], references: [id])
+  modifierOption ModifierOption? @relation(fields: [modifierOptionId], references: [id])
+
+  @@index([orderItemId])
+}
+
+model OrderStatusEvent {
+  id          String      @id @default(cuid())
+  orderId     String
+  fromStatus  OrderStatus?
+  toStatus    OrderStatus
+  note        String?
+  actorAdminId String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  order      Order      @relation(fields: [orderId], references: [id])
+  actorAdmin AdminUser? @relation(fields: [actorAdminId], references: [id])
+
+  @@index([orderId, createdAt])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amountCents       Int
+  /// Optional Bs amount (céntimos de bolívar) when collected in local currency
+  amountBolivarsCents Int?
+  exchangeRateBolivarsPerUsd Decimal? @db.Decimal(18, 4)
+  reference         String?
+  confirmedAt       DateTime?
+  confirmedByAdminId String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ─── Marketing / store config ─────────────────────────────────────────────────
+
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  description     String?
+  percentOff      Decimal?  @db.Decimal(7, 4)
+  amountOffCents  Int?
+  minOrderCents   Int       @default(0)
+  maxRedemptions  Int?
+  redemptionCount Int       @default(0)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  orders Order[]
+}
+
+model DeliveryZone {
+  id               String    @id @default(cuid())
+  name             String
+  feeCents         Int
+  estimatedMinutes Int?
+  isActive         Boolean   @default(true)
+  sortOrder        Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  addresses CustomerAddress[]
+  orders    Order[]
+}
+
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StoreHours {
+  id        String   @id @default(cuid())
+  dayOfWeek Int // 0=Sunday .. 6=Saturday
+  openTime  String // "HH:mm"
+  closeTime String
+  isClosed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dayOfWeek, openTime])
+}
+
+// ─── Email ────────────────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  subject   String
+  bodyHtml  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns EmailCampaign[]
+}
+
+model EmailCampaign {
+  id           String              @id @default(cuid())
+  name         String
+  templateId   String?
+  subject      String
+  bodyHtml     String
+  status       EmailCampaignStatus @default(DRAFT)
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  template  EmailTemplate?   @relation(fields: [templateId], references: [id])
+  recipients EmailRecipient[]
+}
+
+model EmailRecipient {
+  id         String    @id @default(cuid())
+  campaignId String
+  customerId String?
+  email      String
+  sentAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id])
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  events   EmailEvent[]
+
+  @@index([campaignId])
+}
+
+model EmailEvent {
+  id          String         @id @default(cuid())
+  recipientId String
+  type        EmailEventType
+  meta        Json?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  recipient EmailRecipient @relation(fields: [recipientId], references: [id])
+
+  @@index([recipientId, type])
+}
+
+// ─── Inventory / finance ──────────────────────────────────────────────────────
+
+model Supplier {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  notes     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  purchases Purchase[]
+}
+
+/// Catalog of measure units. Ingredient.unit is the base unit code.
+model Unit {
+  code         String        @id
+  name         String
+  dimension    UnitDimension
+  /// Multiply qty in this unit by this to reach the dimension canonical (kg / l / und).
+  toCanonical  Decimal       @db.Decimal(18, 9)
+  sortOrder    Int           @default(0)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  customConversions IngredientUnitConversion[]
+  ingredients       Ingredient[]
+}
+
+model Ingredient {
+  id               String    @id @default(cuid())
+  code             String?   @unique
+  name             String
+  /// Base unit code (stock, avg cost and recipe qty are always stored in this unit).
+  unit             String
+  /// Weighted average unit cost in cents (source of truth for recipes)
+  avgCostCents     Int       @default(0)
+  /// Last purchase unit cost in cents
+  lastCostCents    Int       @default(0)
+  /// @deprecated kept for back-compat reads; mirrors avgCostCents
+  costPerUnitCents Int       @default(0)
+  stockQuantity    Decimal   @default(0) @db.Decimal(12, 3)
+  minStockQuantity Decimal   @default(0) @db.Decimal(12, 3)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  baseUnit          Unit                       @relation(fields: [unit], references: [code])
+  recipeItems       RecipeItem[]
+  purchaseItems     PurchaseItem[]
+  wasteItems        WasteItem[]
+  unitConversions   IngredientUnitConversion[]
+  modifierRecipes   ModifierOptionRecipeItem[]
+}
+
+/// Alternate unit for an ingredient: 1 unitCode = factorToBase of Ingredient.unit
+model IngredientUnitConversion {
+  id           String   @id @default(cuid())
+  ingredientId String
+  unitCode     String
+  factorToBase Decimal  @db.Decimal(18, 9)
+  note         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  unit       Unit       @relation(fields: [unitCode], references: [code])
+
+  @@unique([ingredientId, unitCode])
+  @@index([ingredientId])
+}
+
+model RecipeItem {
+  id             String   @id @default(cuid())
+  productId      String
+  ingredientId   String
+  quantity       Decimal  @db.Decimal(12, 3)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product     Product    @relation(fields: [productId], references: [id])
+  ingredient  Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([productId, ingredientId])
+}
+
+/// Bill of materials for a modifier option (extras, sauces, etc.)
+model ModifierOptionRecipeItem {
+  id               String   @id @default(cuid())
+  modifierOptionId String
+  ingredientId     String
+  quantity         Decimal  @db.Decimal(12, 3)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  ingredient     Ingredient     @relation(fields: [ingredientId], references: [id])
+
+  @@unique([modifierOptionId, ingredientId])
+  @@index([modifierOptionId])
+}
+
+/// Historical Bs-per-USD rates. Latest effectiveFrom <= now is the active rate.
+model ExchangeRate {
+  id             String   @id @default(cuid())
+  bolivarsPerUsd Decimal  @db.Decimal(18, 4)
+  effectiveFrom  DateTime @default(now())
+  note           String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy AdminUser? @relation("ExchangeRateCreatedBy", fields: [createdById], references: [id])
+
+  @@index([effectiveFrom])
+}
+
+model CashSession {
+  id                     String            @id @default(cuid())
+  status                 CashSessionStatus @default(OPEN)
+  openedAt               DateTime          @default(now())
+  closedAt               DateTime?
+  openingFloatCents      Int               @default(0)
+  expectedCashCents      Int?
+  expectedZelleCents     Int?
+  expectedPagoMovilCents Int?
+  expectedTransferCents  Int?
+  expectedOtherCents     Int?
+  countedCashCents       Int?
+  countedZelleCents      Int?
+  countedPagoMovilCents  Int?
+  countedTransferCents   Int?
+  countedOtherCents      Int?
+  differenceCashCents    Int?
+  notes                  String?
+  openedById             String
+  closedById             String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  openedBy AdminUser  @relation("CashSessionOpenedBy", fields: [openedById], references: [id])
+  closedBy AdminUser? @relation("CashSessionClosedBy", fields: [closedById], references: [id])
+
+  @@index([status, openedAt])
+}
+
+model Purchase {
+  id            String               @id @default(cuid())
+  supplierId    String?
+  supplierName  String
+  purchasedAt   DateTime             @default(now())
+  paymentTerms  PurchasePaymentTerms @default(CASH)
+  dueAt         DateTime?
+  paidAt        DateTime?
+  payableStatus PayableStatus        @default(PAID)
+  totalCents    Int                  @default(0)
+  notes         String?
+  createdById   String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  deletedAt     DateTime?
+
+  supplier  Supplier?      @relation(fields: [supplierId], references: [id])
+  createdBy AdminUser      @relation("PurchaseCreatedBy", fields: [createdById], references: [id])
+  items     PurchaseItem[]
+
+  @@index([purchasedAt])
+  @@index([payableStatus])
+  @@index([supplierId])
+}
+
+model PurchaseItem {
+  id             String   @id @default(cuid())
+  purchaseId     String
+  ingredientId   String
+  quantity       Decimal  @db.Decimal(12, 3)
+  unitCostCents  Int
+  lineTotalCents Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  purchase   Purchase   @relation(fields: [purchaseId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([purchaseId])
+}
+
+model Expense {
+  id            String        @id @default(cuid())
+  category      String
+  description   String
+  amountCents   Int
+  spentAt       DateTime      @default(now())
+  paymentTerms  PurchasePaymentTerms @default(CASH)
+  dueAt         DateTime?
+  paidAt        DateTime?
+  payableStatus PayableStatus @default(PAID)
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  createdBy AdminUser @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  @@index([spentAt])
+  @@index([category])
+  @@index([payableStatus])
+}
+
+model Waste {
+  id          String    @id @default(cuid())
+  wastedAt    DateTime  @default(now())
+  reason      String?
+  totalCents  Int       @default(0)
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  createdBy AdminUser  @relation("WasteCreatedBy", fields: [createdById], references: [id])
+  items     WasteItem[]
+}
+
+model WasteItem {
+  id             String   @id @default(cuid())
+  wasteId        String
+  ingredientId   String
+  quantity       Decimal  @db.Decimal(12, 3)
+  unitCostCents  Int
+  lineTotalCents Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  waste      Waste      @relation(fields: [wasteId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([wasteId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  actor AdminUser? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([actorId])
+}
